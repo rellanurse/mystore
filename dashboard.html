@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ทะเบียนยาและหมวดหมู่ - Pharmacy Watchtower</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Prompt & Inter Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Prompt', sans-serif; background-color: #F8FAFC; color: #0F172A; }
+    .mc-red { background-color: #D6001C; }
+    .card-shadow { box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05); }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+  <!-- Header Navigation Bar -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-30 card-shadow">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between h-16 items-center">
+        <div class="flex items-center space-x-3">
+          <div class="w-10 h-10 rounded-xl mc-red flex items-center justify-center text-white font-bold text-xl shadow-md">
+            Rx
+          </div>
+          <div>
+            <h1 class="text-lg font-bold text-slate-900 leading-tight">Pharmacy Watchtower</h1>
+            <p id="subHeaderSourceText" class="text-xs text-slate-500">ทะเบียนรายการยามาตรฐานร้านยา</p>
+          </div>
+        </div>
+
+        <nav class="flex space-x-2 sm:space-x-4">
+          <a href="./dashboard.html" class="px-3 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition">
+            คลังและจ่ายยา
+          </a>
+          <a href="./drug_dashboard.html" class="px-3 py-2 rounded-lg text-sm font-medium bg-red-50 text-red-700 border border-red-200">
+            ทะเบียนยา
+          </a>
+        </nav>
+      </div>
+    </div>
+  </header>
+
+  <!-- Dynamic Data Source Banner -->
+  <div id="sourceBannerContainer" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
+    <!-- เติมด้วย JS (ป้ายสีเขียวสำหรับ Supabase / สีเหลืองสำหรับ JSON) -->
+  </div>
+
+  <!-- Main Content Area -->
+  <main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full space-y-6">
+
+    <!-- Summary KPI Stats -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div class="bg-white p-5 rounded-2xl border border-slate-200 card-shadow flex items-center justify-between">
+        <div>
+          <span class="text-xs font-medium text-slate-500">จำนวน SKU ยาทั้งหมด</span>
+          <div id="kpiTotalDrugs" class="text-3xl font-bold text-slate-900 mt-1">-</div>
+        </div>
+        <div class="w-12 h-12 rounded-xl bg-red-50 text-red-600 flex items-center justify-center font-bold text-lg">
+          💊
+        </div>
+      </div>
+
+      <div class="bg-white p-5 rounded-2xl border border-slate-200 card-shadow flex items-center justify-between">
+        <div>
+          <span class="text-xs font-medium text-slate-500">หมวดหมู่ยา (Categories)</span>
+          <div id="kpiTotalCategories" class="text-3xl font-bold text-slate-900 mt-1">-</div>
+        </div>
+        <div class="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-lg">
+          📁
+        </div>
+      </div>
+    </div>
+
+    <!-- Search & Category Filters -->
+    <div class="bg-white p-4 rounded-2xl border border-slate-200 card-shadow flex flex-col md:flex-row gap-3 justify-between items-center">
+      <div class="flex flex-col sm:flex-row gap-3 w-full md:w-auto flex-grow">
+        <input type="text" id="drugSearchInput" oninput="filterDrugsTable()" 
+               placeholder="ค้นหา SKU, ชื่อสามัญ, รหัส ATC..." 
+               class="px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-red-500 w-full sm:w-64">
+        
+        <select id="categoryFilter" onchange="filterDrugsTable()" class="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-red-500">
+          <option value="all">หมวดหมู่ทั้งหมด</option>
+          <!-- Dynamic Category Options -->
+        </select>
+      </div>
+
+      <button onclick="exportDrugsCSV()" class="w-full sm:w-auto px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-sm font-medium transition shadow-sm flex items-center justify-center gap-2">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+        ส่งออก CSV ทะเบียนยา
+      </button>
+    </div>
+
+    <!-- Drug Registry Table -->
+    <div class="bg-white rounded-2xl border border-slate-200 card-shadow overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-sm">
+          <thead class="bg-slate-50 border-b border-slate-200 text-slate-600 font-medium">
+            <tr>
+              <th class="px-4 py-3.5">SKU</th>
+              <th class="px-4 py-3.5">ชื่อสามัญทางยา (Generic Name)</th>
+              <th class="px-4 py-3.5">ความแรง (Strength)</th>
+              <th class="px-4 py-3.5">รูปแบบยา</th>
+              <th class="px-4 py-3.5">หน่วยนับ</th>
+              <th class="px-4 py-3.5">หมวดหมู่</th>
+              <th class="px-4 py-3.5">ATC Code</th>
+              <th class="px-4 py-3.5 text-right">จุดสั่งซื้อ (Reorder Level)</th>
+            </tr>
+          </thead>
+          <tbody id="drugsTableBody" class="divide-y divide-slate-100 text-slate-700">
+            <!-- Rendered via JS -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="bg-white border-t border-slate-200 py-6 mt-12 text-center text-xs text-slate-500">
+    <div class="max-w-7xl mx-auto px-4">
+      <p id="footerSourceInfo">Pharmacy Watchtower - Drug Registry Management System</p>
+      <p class="mt-1 text-slate-400">พัฒนาสำหรับระบบบริหารทะเบียนยาและการจัดการคลัง</p>
+    </div>
+  </footer>
+
+  <!-- Javascript Logic -->
+  <script>
+    let gDrugsList = [];
+    let gIsSupabase = false;
+    let gAsOfDate = '2026-11-02';
+
+    // ฟังก์ชัน Escape HTML เพื่อความปลอดภัย
+    function escapeHTML(str) {
+      if (str === null || str === undefined) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      fetchDrugsWithFallback();
+    });
+
+    async function fetchDrugsWithFallback() {
+      // ตั้งเวลาหมดเวลา 8 วินาที สำหรับ API /api/data
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+      try {
+        /* คอมเมนต์: อ่านทะเบียนยาจาก API /api/data (คืน 100 รายการจาก Supabase) */
+        const res = await fetch('/api/data', { signal: controller.signal });
+        clearTimeout(timeoutId);
+
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+
+        if (!data.drugs || !data.drugs.items) {
+          throw new Error('ไม่พบข้อมูล drugs ใน response');
+        }
+
+        gDrugsList = data.drugs.items;
+        gAsOfDate = (data.drugs.meta && data.drugs.meta.as_of) || '2026-11-02';
+        gIsSupabase = true;
+      } catch (err) {
+        /* คอมเมนต์: ทางสำรองเมื่อ /api/data ล้มเหลว -> อ่านจากไฟล์สำรอง ./data/drugs_update.json (350 รายการ) */
+        console.warn('ไม่สามารถอ่านจาก /api/data ได้ สลับไปใช้ไฟล์สำรอง drugs_update.json:', err);
+        try {
+          const resJson = await fetch('./data/drugs_update.json');
+          const jsonData = await resJson.json();
+          gDrugsList = jsonData.items || jsonData;
+          gAsOfDate = (jsonData.meta && jsonData.meta.as_of) || '2026-11-02';
+          gIsSupabase = false;
+        } catch (fallbackErr) {
+          console.error('ไม่สามารถโหลดข้อมูลทะเบียนยาสำรองได้:', fallbackErr);
+          showErrorBanner('ทดสอบผ่านลิงก์ Vercel เท่านั้น (Live Server ไม่รัน /api)');
+          return;
+        }
+      }
+
+      renderSourceBanner();
+      initCategoryDropdown();
+      renderDrugsTable();
+    }
+
+    function renderSourceBanner() {
+      const container = document.getElementById('sourceBannerContainer');
+      const subHeader = document.getElementById('subHeaderSourceText');
+      const footerInfo = document.getElementById('footerSourceInfo');
+
+      if (gIsSupabase) {
+        container.innerHTML = `
+          <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-center justify-between text-emerald-800 text-sm card-shadow">
+            <div class="flex items-center space-x-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span class="font-semibold">ข้อมูลจาก Supabase</span>
+              <span class="text-xs bg-emerald-100 px-2 py-0.5 rounded-md font-mono text-emerald-700">as_of: ${escapeHTML(gAsOfDate)}</span>
+            </div>
+            <span class="text-xs text-emerald-600 hidden sm:inline">โหลดทะเบียนยาสำเร็จ (${gDrugsList.length} SKU)</span>
+          </div>
+        `;
+        subHeader.innerText = `ทะเบียนยาจาก Supabase (${gDrugsList.length} รายการ)`;
+        footerInfo.innerText = `แหล่งข้อมูล: Supabase Database (as_of: ${gAsOfDate})`;
+      } else {
+        container.innerHTML = `
+          <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-center justify-between text-amber-800 text-sm card-shadow">
+            <div class="flex items-center space-x-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+              <span class="font-semibold">ข้อมูลสำรองจากไฟล์ (ไม่ใช่ข้อมูลล่าสุด)</span>
+              <span class="text-xs bg-amber-100 px-2 py-0.5 rounded-md font-mono text-amber-700">as_of: ${escapeHTML(gAsOfDate)}</span>
+            </div>
+            <span class="text-xs text-amber-700 hidden sm:inline">ระบบใช้ไฟล์ JSON สำรองเนื้องจากไม่พบ /api/data</span>
+          </div>
+        `;
+        subHeader.innerText = `ทะเบียนยาสำรองจากไฟล์ JSON (${gDrugsList.length} รายการ)`;
+        footerInfo.innerText = `แหล่งข้อมูล: Local JSON Fallback (as_of: ${gAsOfDate})`;
+      }
+    }
+
+    function showErrorBanner(msg) {
+      const container = document.getElementById('sourceBannerContainer');
+      container.innerHTML = `
+        <div class="bg-rose-50 border border-rose-200 rounded-xl p-4 text-rose-800 text-sm card-shadow">
+          <div class="font-bold">เกิดข้อผิดพลาดในการโหลดข้อมูล</div>
+          <div class="mt-1">${escapeHTML(msg)}</div>
+        </div>
+      `;
+    }
+
+    function initCategoryDropdown() {
+      const select = document.getElementById('categoryFilter');
+      const categories = new Set();
+      gDrugsList.forEach(d => {
+        if (d.category) categories.add(d.category);
+      });
+
+      document.getElementById('kpiTotalDrugs').innerText = gDrugsList.length;
+      document.getElementById('kpiTotalCategories').innerText = categories.size;
+
+      let optionsHTML = `<option value="all">หมวดหมู่ทั้งหมด (${categories.size})</option>`;
+      Array.from(categories).sort().forEach(cat => {
+        optionsHTML += `<option value="${escapeHTML(cat)}">${escapeHTML(cat)}</option>`;
+      });
+      select.innerHTML = optionsHTML;
+    }
+
+    function renderDrugsTable() {
+      const tbody = document.getElementById('drugsTableBody');
+      const search = document.getElementById('drugSearchInput').value.toLowerCase().trim();
+      const selectedCat = document.getElementById('categoryFilter').value;
+
+      const filtered = gDrugsList.filter(d => {
+        const searchTarget = `${d.sku} ${d.generic_name} ${d.atc_code}`.toLowerCase();
+        const matchSearch = searchTarget.includes(search);
+        const matchCat = selectedCat === 'all' || d.category === selectedCat;
+        return matchSearch && matchCat;
+      });
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" class="text-center py-8 text-slate-400">ไม่พบข้อมูลยาตามเงื่อนไขที่ระบุ</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(d => `
+        <tr class="hover:bg-slate-50 transition">
+          <td class="px-4 py-3 font-mono font-medium text-slate-900">${escapeHTML(d.sku)}</td>
+          <td class="px-4 py-3 font-medium text-slate-900">${escapeHTML(d.generic_name)}</td>
+          <td class="px-4 py-3 text-xs text-slate-600">${escapeHTML(d.strength)}</td>
+          <td class="px-4 py-3 text-xs text-slate-600">${escapeHTML(d.dosage_form)}</td>
+          <td class="px-4 py-3 text-xs text-slate-600">${escapeHTML(d.unit)}</td>
+          <td class="px-4 py-3 text-xs">
+            <span class="px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 font-medium">${escapeHTML(d.category)}</span>
+          </td>
+          <td class="px-4 py-3 font-mono text-xs text-slate-500">${escapeHTML(d.atc_code)}</td>
+          <td class="px-4 py-3 text-right font-mono font-semibold text-amber-700">${Number(d.reorder_level).toLocaleString()}</td>
+        </tr>
+      `).join('');
+    }
+
+    function filterDrugsTable() {
+      renderDrugsTable();
+    }
+
+    function exportDrugsCSV() {
+      let csv = 'SKU,Generic Name,Strength,Dosage Form,Unit,Category,ATC Code,Reorder Level\n';
+      gDrugsList.forEach(d => {
+        csv += `"${d.sku}","${d.generic_name}","${d.strength}","${d.dosage_form}","${d.unit}","${d.category}","${d.atc_code}",${d.reorder_level}\n`;
+      });
+      const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.setAttribute('download', `drug_registry_${gAsOfDate}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  </script>
+</body>
+</html>
