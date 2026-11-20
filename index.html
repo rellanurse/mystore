@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ระบบร้านยาจำลอง - Index Menu</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: 'Noto Sans Thai', sans-serif;
+      font-size: 16px;
+      background: linear-gradient(135deg, #EBF4FF 0%, #FFF0F6 100%);
+      color: #334155;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 24px 16px;
+    }
+    .wrapper {
+      width: 100%;
+      max-width: 600px;
+      margin: 0 auto;
+      flex-grow: 1;
+    }
+    header {
+      text-align: center;
+      margin-top: 8px;
+      margin-bottom: 20px;
+    }
+    .badge-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 56px;
+      height: 56px;
+      background: linear-gradient(135deg, #FF659D 0%, #3B82F6 100%);
+      color: #ffffff;
+      font-size: 26px;
+      border-radius: 18px;
+      margin-bottom: 12px;
+      box-shadow: 0 8px 18px rgba(255, 101, 157, 0.3);
+    }
+    h1 {
+      font-size: 24px;
+      font-weight: 700;
+      color: #1E293B;
+      margin-bottom: 4px;
+    }
+    .sub-header {
+      font-size: 14px;
+      color: #64748B;
+      font-weight: 500;
+    }
+    .warning-banner {
+      background-color: #FFF1F2;
+      border: 1.5px solid #FFE4E6;
+      color: #E11D48;
+      padding: 14px 16px;
+      border-radius: 16px;
+      font-size: 14px;
+      font-weight: 600;
+      text-align: center;
+      margin-bottom: 24px;
+      box-shadow: 0 4px 12px rgba(225, 29, 72, 0.06);
+    }
+    .menu-list {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .menu-card {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      min-height: 76px;
+      padding: 16px 20px;
+      background-color: #ffffff;
+      border: 2px solid #F1F5F9;
+      border-radius: 20px;
+      text-decoration: none;
+      color: #1E293B;
+      box-shadow: 0 8px 24px rgba(148, 163, 184, 0.12);
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      -webkit-tap-highlight-color: transparent;
+      position: relative;
+      overflow: hidden;
+    }
+    .menu-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 6px;
+      height: 100%;
+      background: linear-gradient(180deg, #FF659D 0%, #3B82F6 100%);
+      opacity: 0.9;
+      border-radius: 6px 0 0 6px;
+      transition: width 0.2s ease;
+    }
+    .menu-card:hover, .menu-card:focus {
+      background-color: #ffffff;
+      border-color: #FFB6C1;
+      transform: translateY(-2px);
+      box-shadow: 0 12px 28px rgba(255, 101, 157, 0.22);
+    }
+    .menu-card:hover::before {
+      width: 10px;
+    }
+    .menu-card:active {
+      transform: translateY(0) scale(0.98);
+      box-shadow: 0 4px 12px rgba(148, 163, 184, 0.15);
+    }
+    .menu-title-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 4px;
+      padding-left: 4px;
+    }
+    .menu-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: #EC4899;
+      letter-spacing: -0.01em;
+    }
+    .menu-arrow {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      background-color: #EFF6FF;
+      color: #2563EB;
+      border-radius: 50%;
+      font-size: 14px;
+      font-weight: bold;
+      transition: all 0.2s ease;
+    }
+    .menu-card:hover .menu-arrow {
+      background-color: #EC4899;
+      color: #ffffff;
+      transform: translateX(4px);
+    }
+    .menu-desc {
+      font-size: 14px;
+      color: #64748B;
+      line-height: 1.4;
+      padding-left: 4px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    @media (max-width: 480px) {
+      .menu-desc {
+        white-space: normal;
+      }
+    }
+    footer {
+      text-align: center;
+      padding: 24px 0 12px 0;
+      color: #94A3B8;
+      font-size: 13px;
+      font-weight: 500;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="wrapper">
+    <header>
+      <div class="badge-icon">💊</div>
+      <h1>ระบบร้านยาจำลอง</h1>
+      <p class="sub-header">Pharmacy Workshop Management Menu</p>
+    </header>
+
+    <div class="warning-banner">
+      ⚠️ ข้อมูลทั้งหมดเป็นข้อมูลจำลอง ห้ามใส่ชื่อผู้ป่วยจริง
+    </div>
+
+    <main>
+      <div id="menuContainer" class="menu-list"></div>
+    </main>
+  </div>
+
+  <footer>
+    <p>© 2026 Pharmacy Workshop System</p>
+  </footer>
+
+  <script>
+    // อาร์เรย์เก็บรายการลิงก์ สามารถเพิ่ม ลบ หรือแก้ไขได้ด้วยการปรับแก้เพียง 1 บรรทัด
+    const menuItems = [
+      {
+        href: 'pos.html',
+        title: 'หน้าขายยา',
+        desc: 'เลือกยา กรอกจำนวน บันทึกการจ่ายยา'
+      },
+      {
+        href: 'admin.html',
+        title: 'จัดการระบบ (ผู้ดูแล)',
+        desc: 'บัญชียา คลังรายล็อต รายการจ่าย ต้องใช้รหัสผู้ดูแล'
+      },
+      {
+        href: 'dashboard.html',
+        title: 'Dashboard คลังยา',
+        desc: 'ภาพรวมคลัง ล็อตใกล้หมดอายุ ยาต่ำกว่าจุดสั่งซื้อ'
+      },
+      {
+        href: 'status.html',
+        title: 'ตรวจสถานะระบบ',
+        desc: 'ตรวจว่าการเชื่อมต่อแต่ละส่วนทำงานปกติ'
+      }
+    ];
+
+    // ฟังก์ชัน Render UI ปุ่มกด ปลอดภัยจาก XSS (ไม่ใช้ innerHTML กับข้อมูลจากอาร์เรย์)
+    function renderMenu() {
+      const container = document.getElementById('menuContainer');
+      container.textContent = ''; // เคลียร์พื้นที่แสดงผล
+
+      menuItems.forEach(item => {
+        const linkCard = document.createElement('a');
+        linkCard.href = item.href;
+        linkCard.className = 'menu-card';
+
+        const titleRow = document.createElement('div');
+        titleRow.className = 'menu-title-row';
+
+        const titleEl = document.createElement('span');
+        titleEl.className = 'menu-title';
+        titleEl.textContent = item.title;
+
+        const arrowEl = document.createElement('span');
+        arrowEl.className = 'menu-arrow';
+        arrowEl.textContent = '➔';
+
+        titleRow.appendChild(titleEl);
+        titleRow.appendChild(arrowEl);
+
+        const descEl = document.createElement('div');
+        descEl.className = 'menu-desc';
+        descEl.textContent = item.desc;
+
+        linkCard.appendChild(titleRow);
+        linkCard.appendChild(descEl);
+        container.appendChild(linkCard);
+      });
+    }
+
+    document.addEventListener('DOMContentLoaded', renderMenu);
+  </script>
+</body>
+</html>
