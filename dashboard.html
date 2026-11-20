@@ -3,9 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ทะเบียนยาและหมวดหมู่ - Pharmacy Watchtower</title>
+  <title>ระบบบริหารคลังยาและรายงานการจ่ายยา - Pharmacy Watchtower</title>
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <!-- Prompt & Inter Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -13,7 +15,11 @@
   <style>
     body { font-family: 'Prompt', sans-serif; background-color: #F8FAFC; color: #0F172A; }
     .mc-red { background-color: #D6001C; }
+    .mc-red-text { color: #D6001C; }
+    .mc-gold { background-color: #FFC72C; }
+    .mc-gold-text { color: #D6001C; }
     .card-shadow { box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05); }
+    .tab-active { border-bottom: 3px solid #D6001C; color: #D6001C; font-weight: 600; }
   </style>
 </head>
 <body class="min-h-screen flex flex-col">
@@ -28,15 +34,15 @@
           </div>
           <div>
             <h1 class="text-lg font-bold text-slate-900 leading-tight">Pharmacy Watchtower</h1>
-            <p id="subHeaderSourceText" class="text-xs text-slate-500">ทะเบียนรายการยามาตรฐานร้านยา</p>
+            <p id="subHeaderSourceText" class="text-xs text-slate-500">ระบบบริหารคลังยาและวิเคราะห์การจ่ายยา</p>
           </div>
         </div>
 
         <nav class="flex space-x-2 sm:space-x-4">
-          <a href="./dashboard.html" class="px-3 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition">
+          <a href="./dashboard.html" class="px-3 py-2 rounded-lg text-sm font-medium bg-red-50 text-red-700 border border-red-200">
             คลังและจ่ายยา
           </a>
-          <a href="./drug_dashboard.html" class="px-3 py-2 rounded-lg text-sm font-medium bg-red-50 text-red-700 border border-red-200">
+          <a href="./drug_dashboard.html" class="px-3 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition">
             ทะเบียนยา
           </a>
         </nav>
@@ -46,94 +52,216 @@
 
   <!-- Dynamic Data Source Banner -->
   <div id="sourceBannerContainer" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
-    <!-- เติมด้วย JS (ป้ายสีเขียวสำหรับ Supabase / สีเหลืองสำหรับ JSON) -->
+    <!-- จะถูกเติมด้วย JavaScript: สีเขียวถ้าใช้ Supabase / สีเหลืองถ้าใช้ JSON สำรอง -->
   </div>
 
-  <!-- Main Content Area -->
+  <!-- Main Content Container -->
   <main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full space-y-6">
 
-    <!-- Summary KPI Stats -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-      <div class="bg-white p-5 rounded-2xl border border-slate-200 card-shadow flex items-center justify-between">
-        <div>
-          <span class="text-xs font-medium text-slate-500">จำนวน SKU ยาทั้งหมด</span>
-          <div id="kpiTotalDrugs" class="text-3xl font-bold text-slate-900 mt-1">-</div>
+    <!-- KPI Cards Bar -->
+    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+      <!-- KPI 1: Active Stock SKUs -->
+      <div class="bg-white p-4 rounded-2xl border border-slate-200 card-shadow flex flex-col justify-between">
+        <span class="text-xs font-medium text-slate-500">SKU ที่มี Stock</span>
+        <div class="mt-2 flex items-baseline">
+          <span id="kpiActiveSkus" class="text-2xl font-bold text-slate-900">-</span>
+          <span id="kpiTotalSkus" class="ml-1.5 text-xs text-slate-400">/ - รายการ</span>
         </div>
-        <div class="w-12 h-12 rounded-xl bg-red-50 text-red-600 flex items-center justify-center font-bold text-lg">
-          💊
-        </div>
+        <span class="text-[11px] text-emerald-600 mt-1 font-medium">พร้อมจ่ายในคลัง</span>
       </div>
 
-      <div class="bg-white p-5 rounded-2xl border border-slate-200 card-shadow flex items-center justify-between">
-        <div>
-          <span class="text-xs font-medium text-slate-500">หมวดหมู่ยา (Categories)</span>
-          <div id="kpiTotalCategories" class="text-3xl font-bold text-slate-900 mt-1">-</div>
+      <!-- KPI 2: Reorder Level Warning -->
+      <div class="bg-white p-4 rounded-2xl border border-slate-200 card-shadow flex flex-col justify-between">
+        <span class="text-xs font-medium text-slate-500">ถึงจุดสั่งซื้อ (< Reorder)</span>
+        <div class="mt-2 flex items-baseline">
+          <span id="kpiReorderCount" class="text-2xl font-bold text-amber-600">-</span>
+          <span class="ml-1 text-xs text-slate-500">รายการ</span>
         </div>
-        <div class="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-lg">
-          📁
+        <span id="kpiReorderSkus" class="text-[11px] text-amber-700 mt-1 truncate">รอดำเนินการสั่งซื้อ</span>
+      </div>
+
+      <!-- KPI 3: Near Expiry Lots -->
+      <div class="bg-white p-4 rounded-2xl border border-slate-200 card-shadow flex flex-col justify-between">
+        <span class="text-xs font-medium text-slate-500">ใกล้หมดอายุ (≤90 วัน)</span>
+        <div class="mt-2 flex items-baseline">
+          <span id="kpiNearExpiryCount" class="text-2xl font-bold text-rose-600">-</span>
+          <span class="ml-1 text-xs text-slate-500">ล็อต</span>
         </div>
+        <span class="text-[11px] text-rose-600 mt-1 font-medium">ต้องวางแผน FEFO</span>
+      </div>
+
+      <!-- KPI 4: Quarantine Lots -->
+      <div class="bg-white p-4 rounded-2xl border border-slate-200 card-shadow flex flex-col justify-between">
+        <span class="text-xs font-medium text-slate-500">ล็อตกักกัน (Quarantine)</span>
+        <div class="mt-2 flex items-baseline">
+          <span id="kpiQuarantineCount" class="text-2xl font-bold text-purple-600">-</span>
+          <span class="ml-1 text-xs text-slate-500">ล็อต</span>
+        </div>
+        <span class="text-[11px] text-purple-600 mt-1 font-medium">รอการตรวจสอบ</span>
+      </div>
+
+      <!-- KPI 5: Active Stock Value -->
+      <div class="bg-white p-4 rounded-2xl border border-slate-200 card-shadow col-span-2 lg:col-span-1 flex flex-col justify-between">
+        <span class="text-xs font-medium text-slate-500">มูลค่าสต็อก Active</span>
+        <div class="mt-2 flex items-baseline">
+          <span id="kpiStockValue" class="text-2xl font-bold text-slate-900">฿-</span>
+        </div>
+        <span class="text-[11px] text-slate-400 mt-1">คำนวณจากล็อต Active</span>
       </div>
     </div>
 
-    <!-- Search & Category Filters -->
-    <div class="bg-white p-4 rounded-2xl border border-slate-200 card-shadow flex flex-col md:flex-row gap-3 justify-between items-center">
-      <div class="flex flex-col sm:flex-row gap-3 w-full md:w-auto flex-grow">
-        <input type="text" id="drugSearchInput" oninput="filterDrugsTable()" 
-               placeholder="ค้นหา SKU, ชื่อสามัญ, รหัส ATC..." 
-               class="px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-red-500 w-full sm:w-64">
-        
-        <select id="categoryFilter" onchange="filterDrugsTable()" class="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-red-500">
-          <option value="all">หมวดหมู่ทั้งหมด</option>
-          <!-- Dynamic Category Options -->
-        </select>
-      </div>
-
-      <button onclick="exportDrugsCSV()" class="w-full sm:w-auto px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-sm font-medium transition shadow-sm flex items-center justify-center gap-2">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-        ส่งออก CSV ทะเบียนยา
+    <!-- Main Navigation Tabs -->
+    <div class="border-b border-slate-200 flex space-x-6 text-sm font-medium">
+      <button id="tabInventoryBtn" onclick="switchTab('inventory')" class="pb-3 tab-active transition">
+        📦 ภาพรวมคลังและล็อตยา
+      </button>
+      <button id="tabDispenseBtn" onclick="switchTab('dispense')" class="pb-3 text-slate-500 hover:text-slate-800 transition">
+        📋 รายงานและสถิติการจ่ายยา
       </button>
     </div>
 
-    <!-- Drug Registry Table -->
-    <div class="bg-white rounded-2xl border border-slate-200 card-shadow overflow-hidden">
-      <div class="overflow-x-auto">
-        <table class="w-full text-left text-sm">
-          <thead class="bg-slate-50 border-b border-slate-200 text-slate-600 font-medium">
-            <tr>
-              <th class="px-4 py-3.5">SKU</th>
-              <th class="px-4 py-3.5">ชื่อสามัญทางยา (Generic Name)</th>
-              <th class="px-4 py-3.5">ความแรง (Strength)</th>
-              <th class="px-4 py-3.5">รูปแบบยา</th>
-              <th class="px-4 py-3.5">หน่วยนับ</th>
-              <th class="px-4 py-3.5">หมวดหมู่</th>
-              <th class="px-4 py-3.5">ATC Code</th>
-              <th class="px-4 py-3.5 text-right">จุดสั่งซื้อ (Reorder Level)</th>
-            </tr>
-          </thead>
-          <tbody id="drugsTableBody" class="divide-y divide-slate-100 text-slate-700">
-            <!-- Rendered via JS -->
-          </tbody>
-        </table>
+    <!-- TAB 1: INVENTORY SECTION -->
+    <section id="inventorySection" class="space-y-4">
+      <!-- Search and Filters -->
+      <div class="bg-white p-4 rounded-2xl border border-slate-200 card-shadow flex flex-col md:flex-row gap-3 justify-between items-center">
+        <div class="flex flex-col sm:flex-row gap-3 w-full md:w-auto flex-grow">
+          <input type="text" id="invSearchInput" oninput="filterInventoryTable()" 
+                 placeholder="ค้นหา SKU, ชื่อสามัญ, ล็อต..." 
+                 class="px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-red-500 w-full sm:w-64">
+          
+          <select id="invStatusFilter" onchange="filterInventoryTable()" class="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-red-500">
+            <option value="all">สถานะทั้งหมด</option>
+            <option value="active">Active (ปกติ)</option>
+            <option value="near_expiry">ใกล้หมดอายุ (≤90 วัน)</option>
+            <option value="quarantine">Quarantine (กักกัน)</option>
+            <option value="reorder">ต่ำกว่าจุดสั่งซื้อ</option>
+          </select>
+        </div>
+
+        <button onclick="exportInventoryCSV()" class="w-full sm:w-auto px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-sm font-medium transition shadow-sm flex items-center justify-center gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+          ส่งออก CSV
+        </button>
       </div>
-    </div>
+
+      <!-- Inventory Data Table -->
+      <div class="bg-white rounded-2xl border border-slate-200 card-shadow overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-sm">
+            <thead class="bg-slate-50 border-b border-slate-200 text-slate-600 font-medium">
+              <tr>
+                <th class="px-4 py-3.5">SKU</th>
+                <th class="px-4 py-3.5">ชื่อสามัญทางยา</th>
+                <th class="px-4 py-3.5">ล็อต</th>
+                <th class="px-4 py-3.5">วันรับเข้า</th>
+                <th class="px-4 py-3.5">วันหมดอายุ</th>
+                <th class="px-4 py-3.5 text-right">จำนวน</th>
+                <th class="px-4 py-3.5 text-right">ทุน/หน่วย</th>
+                <th class="px-4 py-3.5 text-center">สถานะ</th>
+                <th class="px-4 py-3.5 text-center">จุดสั่งซื้อ</th>
+              </tr>
+            </thead>
+            <tbody id="inventoryTableBody" class="divide-y divide-slate-100 text-slate-700">
+              <!-- Rendered via JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 2: DISPENSE SECTION -->
+    <section id="dispenseSection" class="space-y-6 hidden">
+      <!-- Dispense Sub-KPI Cards -->
+      <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+        <div class="bg-white p-4 rounded-2xl border border-slate-200 card-shadow">
+          <span class="text-xs text-slate-500 font-medium">รายการจ่าย (Dispense)</span>
+          <div id="dispenseKpiTotal" class="text-2xl font-bold text-slate-900 mt-1">-</div>
+        </div>
+        <div class="bg-white p-4 rounded-2xl border border-slate-200 card-shadow">
+          <span class="text-xs text-slate-500 font-medium">รายการยกเลิก (Void)</span>
+          <div id="dispenseKpiVoid" class="text-2xl font-bold text-rose-600 mt-1">-</div>
+        </div>
+        <div class="bg-white p-4 rounded-2xl border border-slate-200 card-shadow">
+          <span class="text-xs text-slate-500 font-medium">รายการรับคืน (Return)</span>
+          <div id="dispenseKpiReturn" class="text-2xl font-bold text-amber-600 mt-1">-</div>
+        </div>
+        <div class="bg-white p-4 rounded-2xl border border-slate-200 card-shadow">
+          <span class="text-xs text-slate-500 font-medium">SKU ที่ถูกจ่าย</span>
+          <div id="dispenseKpiUniqueSkus" class="text-2xl font-bold text-slate-900 mt-1">-</div>
+        </div>
+        <div class="bg-white p-4 rounded-2xl border border-slate-200 card-shadow col-span-2 sm:col-span-1">
+          <span class="text-xs text-slate-500 font-medium">รหัสผู้รับยา (Patients)</span>
+          <div id="dispenseKpiUniquePatients" class="text-2xl font-bold text-indigo-600 mt-1">-</div>
+        </div>
+      </div>
+
+      <!-- Filters & Actions -->
+      <div class="bg-white p-4 rounded-2xl border border-slate-200 card-shadow flex flex-col md:flex-row gap-3 justify-between items-center">
+        <div class="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+          <input type="text" id="dispSearchInput" oninput="filterDispenseTable()" 
+                 placeholder="ค้นหา SKU, รหัสผู้ป่วย, ผู้จ่าย..." 
+                 class="px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-red-500 w-full sm:w-64">
+          
+          <select id="dispTypeFilter" onchange="filterDispenseTable()" class="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-red-500">
+            <option value="all">ประเภททั้งหมด</option>
+            <option value="dispense">Dispense (จ่ายยา)</option>
+            <option value="void">Void (ยกเลิก)</option>
+            <option value="return">Return (รับคืน)</option>
+          </select>
+        </div>
+
+        <button onclick="exportDispenseCSV()" class="w-full sm:w-auto px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-sm font-medium transition shadow-sm flex items-center justify-center gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+          ส่งออก CSV รายการจ่าย
+        </button>
+      </div>
+
+      <!-- Dispense Data Table -->
+      <div class="bg-white rounded-2xl border border-slate-200 card-shadow overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-sm">
+            <thead class="bg-slate-50 border-b border-slate-200 text-slate-600 font-medium">
+              <tr>
+                <th class="px-4 py-3.5">Dispense ID</th>
+                <th class="px-4 py-3.5">วัน-เวลา (ไทย)</th>
+                <th class="px-4 py-3.5">SKU</th>
+                <th class="px-4 py-3.5">ชื่อสามัญ</th>
+                <th class="px-4 py-3.5">ล็อต</th>
+                <th class="px-4 py-3.5 text-right">จำนวน</th>
+                <th class="px-4 py-3.5">รหัสผู้ป่วย</th>
+                <th class="px-4 py-3.5">เภสัชกร</th>
+                <th class="px-4 py-3.5 text-center">ประเภท</th>
+              </tr>
+            </thead>
+            <tbody id="dispenseTableBody" class="divide-y divide-slate-100 text-slate-700">
+              <!-- Rendered via JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
 
   </main>
 
   <!-- Footer -->
   <footer class="bg-white border-t border-slate-200 py-6 mt-12 text-center text-xs text-slate-500">
     <div class="max-w-7xl mx-auto px-4">
-      <p id="footerSourceInfo">Pharmacy Watchtower - Drug Registry Management System</p>
-      <p class="mt-1 text-slate-400">พัฒนาสำหรับระบบบริหารทะเบียนยาและการจัดการคลัง</p>
+      <p id="footerSourceInfo">Pharmacy Watchtower Dashboard System</p>
+      <p class="mt-1 text-slate-400">พัฒนาสำหรับเภสัชกรและผู้จัดการร้านยา | เข้ากันได้กับ Supabase REST API & Vercel Serverless Functions</p>
     </div>
   </footer>
 
   <!-- Javascript Logic -->
   <script>
+    // --- Global State ---
+    let gDrugsMap = new Map();
     let gDrugsList = [];
-    let gIsSupabase = false;
+    let gStockList = [];
+    let gDispenseList = [];
     let gAsOfDate = '2026-11-02';
+    let gIsSupabase = false;
 
-    // ฟังก์ชัน Escape HTML เพื่อความปลอดภัย
+    // --- HTML Escaping Safety Function ---
     function escapeHTML(str) {
       if (str === null || str === undefined) return '';
       return String(str)
@@ -144,51 +272,73 @@
         .replace(/'/g, '&#039;');
     }
 
+    // --- Initialization & Data Fetching with Fallback ---
     document.addEventListener('DOMContentLoaded', () => {
-      fetchDrugsWithFallback();
+      fetchDataWithFallback();
     });
 
-    async function fetchDrugsWithFallback() {
-      // ตั้งเวลาหมดเวลา 8 วินาที สำหรับ API /api/data
+    async function fetchDataWithFallback() {
+      // ตั้ง Timeout 8 วินาที สำหรับเรียก /api/data
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 8000);
 
       try {
-        /* คอมเมนต์: อ่านทะเบียนยาจาก API /api/data (คืน 100 รายการจาก Supabase) */
+        /* คอมเมนต์: เรียกข้อมูลสดจาก Supabase ผ่าน Vercel Serverless Endpoint (/api/data) */
         const res = await fetch('/api/data', { signal: controller.signal });
         clearTimeout(timeoutId);
 
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
 
-        if (!data.drugs || !data.drugs.items) {
-          throw new Error('ไม่พบข้อมูล drugs ใน response');
+        // ตรวจสอบความถูกต้องของข้อมูล
+        if (!data.drugs || !data.stock || !data.dispense_log) {
+          throw new Error('โครงสร้างข้อมูลจาก /api/data ไม่สมบูรณ์');
         }
 
-        gDrugsList = data.drugs.items;
-        gAsOfDate = (data.drugs.meta && data.drugs.meta.as_of) || '2026-11-02';
+        gDrugsList = data.drugs.items || [];
+        gStockList = data.stock.items || [];
+        gDispenseList = data.dispense_log.items || [];
+        
+        // อ่านวันอ้างอิงจาก stock.meta.as_of หรือ drugs.meta.as_of
+        gAsOfDate = (data.stock && data.stock.meta && data.stock.meta.as_of) || 
+                    (data.drugs && data.drugs.meta && data.drugs.meta.as_of) || 
+                    '2026-11-02';
+        
         gIsSupabase = true;
       } catch (err) {
-        /* คอมเมนต์: ทางสำรองเมื่อ /api/data ล้มเหลว -> อ่านจากไฟล์สำรอง ./data/drugs_update.json (350 รายการ) */
-        console.warn('ไม่สามารถอ่านจาก /api/data ได้ สลับไปใช้ไฟล์สำรอง drugs_update.json:', err);
+        /* คอมเมนต์: ทางสำรอง (Fallback) เมื่อ /api/data ล้มเหลว/Timeout -> โหลดไฟล์ JSON ท้องถิ่น */
+        console.warn('ไม่สามารถดึงข้อมูลจาก /api/data ได้ นำเข้าข้อมูลสำรองจากไฟล์ JSON:', err);
         try {
-          const resJson = await fetch('./data/drugs_update.json');
-          const jsonData = await resJson.json();
-          gDrugsList = jsonData.items || jsonData;
-          gAsOfDate = (jsonData.meta && jsonData.meta.as_of) || '2026-11-02';
+          const [rDrugs, rStock, rDispense] = await Promise.all([
+            fetch('./data/drugs_update.json').then(r => r.json()),
+            fetch('./data/stock.json').then(r => r.json()),
+            fetch('./data/dispense-log.json').then(r => r.json())
+          ]);
+
+          gDrugsList = rDrugs.items || rDrugs;
+          gStockList = rStock.items || rStock;
+          gDispenseList = rDispense.items || rDispense;
+          gAsOfDate = (rStock.meta && rStock.meta.as_of) || '2026-11-02';
           gIsSupabase = false;
         } catch (fallbackErr) {
-          console.error('ไม่สามารถโหลดข้อมูลทะเบียนยาสำรองได้:', fallbackErr);
+          console.error('ไม่สามารถโหลดข้อมูลสำรองได้:', fallbackErr);
           showErrorBanner('ทดสอบผ่านลิงก์ Vercel เท่านั้น (Live Server ไม่รัน /api)');
           return;
         }
       }
 
+      // สร้าง Map สำหรับค้นหาข้อมูลยา
+      gDrugsMap.clear();
+      gDrugsList.forEach(item => gDrugsMap.set(item.sku, item));
+
+      // ปรับปรุง UI แสดงป้ายแหล่งข้อมูล และคำนวณ KPI
       renderSourceBanner();
-      initCategoryDropdown();
-      renderDrugsTable();
+      calculateKPIs();
+      renderInventoryTable();
+      renderDispenseTable();
     }
 
+    // --- UI Source Indicator Banner ---
     function renderSourceBanner() {
       const container = document.getElementById('sourceBannerContainer');
       const subHeader = document.getElementById('subHeaderSourceText');
@@ -202,10 +352,10 @@
               <span class="font-semibold">ข้อมูลจาก Supabase</span>
               <span class="text-xs bg-emerald-100 px-2 py-0.5 rounded-md font-mono text-emerald-700">as_of: ${escapeHTML(gAsOfDate)}</span>
             </div>
-            <span class="text-xs text-emerald-600 hidden sm:inline">โหลดทะเบียนยาสำเร็จ (${gDrugsList.length} SKU)</span>
+            <span class="text-xs text-emerald-600 hidden sm:inline">เชื่อมต่อฐานข้อมูลเรียบร้อย (${gStockList.length} ล็อต, ${gDispenseList.length} รายการ)</span>
           </div>
         `;
-        subHeader.innerText = `ทะเบียนยาจาก Supabase (${gDrugsList.length} รายการ)`;
+        subHeader.innerText = `ข้อมูลล่าสุดจาก Supabase (ณ วันที่ ${gAsOfDate})`;
         footerInfo.innerText = `แหล่งข้อมูล: Supabase Database (as_of: ${gAsOfDate})`;
       } else {
         container.innerHTML = `
@@ -218,7 +368,7 @@
             <span class="text-xs text-amber-700 hidden sm:inline">ระบบใช้ไฟล์ JSON สำรองเนื้องจากไม่พบ /api/data</span>
           </div>
         `;
-        subHeader.innerText = `ทะเบียนยาสำรองจากไฟล์ JSON (${gDrugsList.length} รายการ)`;
+        subHeader.innerText = `ข้อมูลสำรองจากไฟล์ JSON (ณ วันที่ ${gAsOfDate})`;
         footerInfo.innerText = `แหล่งข้อมูล: Local JSON Fallback (as_of: ${gAsOfDate})`;
       }
     }
@@ -233,69 +383,290 @@
       `;
     }
 
-    function initCategoryDropdown() {
-      const select = document.getElementById('categoryFilter');
-      const categories = new Set();
-      gDrugsList.forEach(d => {
-        if (d.category) categories.add(d.category);
+    // --- KPI & Business Rules Calculation ---
+    function calculateKPIs() {
+      // 1. คำนวณ Usable Qty ต่อ SKU
+      // ยอดใช้ได้ = Sum(qty_on_hand) ของล็อตที่ status='active', expiry >= as_of, qty_on_hand > 0
+      const usableQtyMap = new Map();
+      let activeStockValue = 0;
+      let quarantineLots = 0;
+      let nearExpiryLots = 0;
+
+      gStockList.forEach(stock => {
+        const qty = Number(stock.qty_on_hand) || 0;
+        const cost = Number(stock.unit_cost) || 0;
+        const expiry = stock.expiry ? stock.expiry.slice(0, 10) : '';
+
+        if (stock.status === 'quarantine') {
+          quarantineLots++;
+        }
+
+        if (stock.status === 'active' && qty > 0 && expiry >= gAsOfDate) {
+          // คำนวณยอดใช้ได้
+          const current = usableQtyMap.get(stock.sku) || 0;
+          usableQtyMap.set(stock.sku, current + qty);
+
+          // มูลค่าสต็อก Active
+          activeStockValue += (qty * cost);
+
+          // คำนวณวันหมดอายุใกล้ (≤ 90 วัน)
+          const daysLeft = getDaysDiff(gAsOfDate, expiry);
+          if (daysLeft >= 0 && daysLeft <= 90) {
+            nearExpiryLots++;
+          }
+        }
       });
 
-      document.getElementById('kpiTotalDrugs').innerText = gDrugsList.length;
-      document.getElementById('kpiTotalCategories').innerText = categories.size;
+      // 2. คำนวณ SKU ที่มี Stock และ SKU ที่ถึงจุดสั่งซื้อ (< reorder_level)
+      let activeSkusCount = 0;
+      let reorderCount = 0;
+      const reorderSkuNames = [];
 
-      let optionsHTML = `<option value="all">หมวดหมู่ทั้งหมด (${categories.size})</option>`;
-      Array.from(categories).sort().forEach(cat => {
-        optionsHTML += `<option value="${escapeHTML(cat)}">${escapeHTML(cat)}</option>`;
+      gDrugsList.forEach(drug => {
+        const usableQty = usableQtyMap.get(drug.sku) || 0;
+        if (usableQty > 0) activeSkusCount++;
+
+        // กฎ: น้อยกว่าจุดสั่งซื้อ (< reorder_level)
+        if (usableQty < Number(drug.reorder_level)) {
+          reorderCount++;
+          reorderSkuNames.push(drug.sku);
+        }
       });
-      select.innerHTML = optionsHTML;
+
+      // อัปเดต UI KPI คลังยา
+      document.getElementById('kpiActiveSkus').innerText = activeSkusCount;
+      document.getElementById('kpiTotalSkus').innerText = `/ ${gDrugsList.length} รายการ`;
+      document.getElementById('kpiReorderCount').innerText = reorderCount;
+      document.getElementById('kpiReorderSkus').innerText = reorderSkuNames.length > 0 ? reorderSkuNames.join(', ') : 'ไม่มีรายการค้าง';
+      document.getElementById('kpiNearExpiryCount').innerText = nearExpiryLots;
+      document.getElementById('kpiQuarantineCount').innerText = quarantineLots;
+      document.getElementById('kpiStockValue').innerText = `฿${activeStockValue.toLocaleString('th-TH', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+
+      // 3. คำนวณ KPI ฝั่งการจ่ายยา (Dispense)
+      let dispenseCount = 0;
+      let voidCount = 0;
+      let returnCount = 0;
+      const uniqueSkus = new Set();
+      const uniquePatients = new Set();
+
+      gDispenseList.forEach(item => {
+        const type = item.type || 'dispense'; // default เป็น dispense ถ้าไม่มีระบุ
+        if (type === 'dispense') {
+          dispenseCount++;
+          uniqueSkus.add(item.sku);
+          if (item.patient_code) uniquePatients.add(item.patient_code);
+        } else if (type === 'void') {
+          voidCount++;
+        } else if (type === 'return') {
+          returnCount++;
+        }
+      });
+
+      document.getElementById('dispenseKpiTotal').innerText = dispenseCount;
+      document.getElementById('dispenseKpiVoid').innerText = voidCount;
+      document.getElementById('dispenseKpiReturn').innerText = returnCount;
+      document.getElementById('dispenseKpiUniqueSkus').innerText = uniqueSkus.size;
+      document.getElementById('dispenseKpiUniquePatients').innerText = uniquePatients.size;
     }
 
-    function renderDrugsTable() {
-      const tbody = document.getElementById('drugsTableBody');
-      const search = document.getElementById('drugSearchInput').value.toLowerCase().trim();
-      const selectedCat = document.getElementById('categoryFilter').value;
+    // Helper: คำนวณผลต่างจำนวนวันระหว่าง YYYY-MM-DD
+    function getDaysDiff(fromDateStr, toDateStr) {
+      if (!fromDateStr || !toDateStr) return 9999;
+      const d1 = new Date(fromDateStr);
+      const d2 = new Date(toDateStr);
+      const diffTime = d2 - d1;
+      return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    }
 
-      const filtered = gDrugsList.filter(d => {
-        const searchTarget = `${d.sku} ${d.generic_name} ${d.atc_code}`.toLowerCase();
-        const matchSearch = searchTarget.includes(search);
-        const matchCat = selectedCat === 'all' || d.category === selectedCat;
-        return matchSearch && matchCat;
+    // --- Tab Switching ---
+    function switchTab(tab) {
+      const invSection = document.getElementById('inventorySection');
+      const dispSection = document.getElementById('dispenseSection');
+      const invBtn = document.getElementById('tabInventoryBtn');
+      const dispBtn = document.getElementById('tabDispenseBtn');
+
+      if (tab === 'inventory') {
+        invSection.classList.remove('hidden');
+        dispSection.classList.add('hidden');
+        invBtn.className = 'pb-3 tab-active transition';
+        dispBtn.className = 'pb-3 text-slate-500 hover:text-slate-800 transition';
+      } else {
+        invSection.classList.add('hidden');
+        dispSection.classList.remove('hidden');
+        invBtn.className = 'pb-3 text-slate-500 hover:text-slate-800 transition';
+        dispBtn.className = 'pb-3 tab-active transition';
+      }
+    }
+
+    // --- Render Inventory Table ---
+    function renderInventoryTable() {
+      const tbody = document.getElementById('inventoryTableBody');
+      const search = document.getElementById('invSearchInput').value.toLowerCase().trim();
+      const statusFilter = document.getElementById('invStatusFilter').value;
+
+      // สร้าง Map คำนวณยอดใช้ได้ล่วงหน้า
+      const usableQtyMap = new Map();
+      gStockList.forEach(s => {
+        const expiry = s.expiry ? s.expiry.slice(0, 10) : '';
+        if (s.status === 'active' && s.qty_on_hand > 0 && expiry >= gAsOfDate) {
+          usableQtyMap.set(s.sku, (usableQtyMap.get(s.sku) || 0) + Number(s.qty_on_hand));
+        }
+      });
+
+      const filtered = gStockList.filter(s => {
+        const drug = gDrugsMap.get(s.sku) || {};
+        const genericName = (drug.generic_name || '').toLowerCase();
+        const sku = (s.sku || '').toLowerCase();
+        const lot = (s.lot || '').toLowerCase();
+
+        const matchSearch = sku.includes(search) || genericName.includes(search) || lot.includes(search);
+        
+        let matchStatus = true;
+        const expiry = s.expiry ? s.expiry.slice(0, 10) : '';
+        const daysLeft = getDaysDiff(gAsOfDate, expiry);
+        const usableQty = usableQtyMap.get(s.sku) || 0;
+        const reorderLevel = Number(drug.reorder_level || 0);
+
+        if (statusFilter === 'active') matchStatus = s.status === 'active';
+        else if (statusFilter === 'quarantine') matchStatus = s.status === 'quarantine';
+        else if (statusFilter === 'near_expiry') matchStatus = s.status === 'active' && daysLeft >= 0 && daysLeft <= 90;
+        else if (statusFilter === 'reorder') matchStatus = usableQty < reorderLevel;
+
+        return matchSearch && matchStatus;
       });
 
       if (filtered.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="8" class="text-center py-8 text-slate-400">ไม่พบข้อมูลยาตามเงื่อนไขที่ระบุ</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="9" class="text-center py-8 text-slate-400">ไม่พบข้อมูลสต็อกยาตามเงื่อนไข</td></tr>`;
         return;
       }
 
-      tbody.innerHTML = filtered.map(d => `
-        <tr class="hover:bg-slate-50 transition">
-          <td class="px-4 py-3 font-mono font-medium text-slate-900">${escapeHTML(d.sku)}</td>
-          <td class="px-4 py-3 font-medium text-slate-900">${escapeHTML(d.generic_name)}</td>
-          <td class="px-4 py-3 text-xs text-slate-600">${escapeHTML(d.strength)}</td>
-          <td class="px-4 py-3 text-xs text-slate-600">${escapeHTML(d.dosage_form)}</td>
-          <td class="px-4 py-3 text-xs text-slate-600">${escapeHTML(d.unit)}</td>
-          <td class="px-4 py-3 text-xs">
-            <span class="px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 font-medium">${escapeHTML(d.category)}</span>
-          </td>
-          <td class="px-4 py-3 font-mono text-xs text-slate-500">${escapeHTML(d.atc_code)}</td>
-          <td class="px-4 py-3 text-right font-mono font-semibold text-amber-700">${Number(d.reorder_level).toLocaleString()}</td>
-        </tr>
-      `).join('');
+      tbody.innerHTML = filtered.map(s => {
+        const drug = gDrugsMap.get(s.sku) || {};
+        const expiry = s.expiry ? s.expiry.slice(0, 10) : '-';
+        const daysLeft = getDaysDiff(gAsOfDate, expiry);
+        const usableQty = usableQtyMap.get(s.sku) || 0;
+        const reorderLevel = Number(drug.reorder_level || 0);
+        const isBelowReorder = usableQty < reorderLevel;
+
+        let statusBadge = '';
+        if (s.status === 'quarantine') {
+          statusBadge = `<span class="px-2.5 py-1 text-xs font-semibold rounded-full bg-purple-100 text-purple-700">Quarantine</span>`;
+        } else if (expiry < gAsOfDate && s.status === 'active') {
+          statusBadge = `<span class="px-2.5 py-1 text-xs font-semibold rounded-full bg-rose-100 text-rose-700">หมดอายุ</span>`;
+        } else if (daysLeft <= 90 && s.status === 'active') {
+          statusBadge = `<span class="px-2.5 py-1 text-xs font-semibold rounded-full bg-amber-100 text-amber-700">ใกล้หมดอายุ (${daysLeft}d)</span>`;
+        } else {
+          statusBadge = `<span class="px-2.5 py-1 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-700">Active</span>`;
+        }
+
+        const reorderBadge = isBelowReorder 
+          ? `<span class="px-2 py-0.5 text-xs font-bold rounded bg-amber-100 text-amber-800 border border-amber-300">ถึงจุดสั่งซื้อ (${usableQty}/${reorderLevel})</span>`
+          : `<span class="text-xs text-slate-400">${reorderLevel}</span>`;
+
+        return `
+          <tr class="hover:bg-slate-50 transition">
+            <td class="px-4 py-3 font-mono font-medium text-slate-900">${escapeHTML(s.sku)}</td>
+            <td class="px-4 py-3">
+              <div class="font-medium text-slate-900">${escapeHTML(drug.generic_name || s.sku)}</div>
+              <div class="text-xs text-slate-400">${escapeHTML(drug.strength || '')} ${escapeHTML(drug.dosage_form || '')}</div>
+            </td>
+            <td class="px-4 py-3 font-mono text-xs">${escapeHTML(s.lot)}</td>
+            <td class="px-4 py-3 text-xs text-slate-500">${escapeHTML(s.received_date ? s.received_date.slice(0, 10) : '-')}</td>
+            <td class="px-4 py-3 text-xs font-mono">${escapeHTML(expiry)}</td>
+            <td class="px-4 py-3 text-right font-semibold text-slate-900">${Number(s.qty_on_hand).toLocaleString()}</td>
+            <td class="px-4 py-3 text-right text-xs font-mono">฿${Number(s.unit_cost).toFixed(2)}</td>
+            <td class="px-4 py-3 text-center">${statusBadge}</td>
+            <td class="px-4 py-3 text-center">${reorderBadge}</td>
+          </tr>
+        `;
+      }).join('');
     }
 
-    function filterDrugsTable() {
-      renderDrugsTable();
+    function filterInventoryTable() {
+      renderInventoryTable();
     }
 
-    function exportDrugsCSV() {
-      let csv = 'SKU,Generic Name,Strength,Dosage Form,Unit,Category,ATC Code,Reorder Level\n';
-      gDrugsList.forEach(d => {
-        csv += `"${d.sku}","${d.generic_name}","${d.strength}","${d.dosage_form}","${d.unit}","${d.category}","${d.atc_code}",${d.reorder_level}\n`;
+    // --- Render Dispense Table ---
+    function renderDispenseTable() {
+      const tbody = document.getElementById('dispenseTableBody');
+      const search = document.getElementById('dispSearchInput').value.toLowerCase().trim();
+      const typeFilter = document.getElementById('dispTypeFilter').value;
+
+      const filtered = gDispenseList.filter(item => {
+        const drug = gDrugsMap.get(item.sku) || {};
+        const searchTarget = `${item.dispense_id} ${item.sku} ${drug.generic_name || ''} ${item.patient_code} ${item.pharmacist_code}`.toLowerCase();
+        const matchSearch = searchTarget.includes(search);
+        
+        const itemType = item.type || 'dispense';
+        const matchType = typeFilter === 'all' || itemType === typeFilter;
+
+        return matchSearch && matchType;
       });
-      const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="9" class="text-center py-8 text-slate-400">ไม่พบข้อมูลการจ่ายยาตามเงื่อนไข</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(item => {
+        const drug = gDrugsMap.get(item.sku) || {};
+        const itemType = item.type || 'dispense';
+
+        let typeBadge = '';
+        if (itemType === 'dispense') {
+          typeBadge = `<span class="px-2.5 py-1 text-xs font-medium rounded-full bg-blue-50 text-blue-700">Dispense</span>`;
+        } else if (itemType === 'void') {
+          typeBadge = `<span class="px-2.5 py-1 text-xs font-medium rounded-full bg-rose-100 text-rose-700">Void</span>`;
+        } else if (itemType === 'return') {
+          typeBadge = `<span class="px-2.5 py-1 text-xs font-medium rounded-full bg-amber-100 text-amber-700">Return</span>`;
+        }
+
+        // ตัดความยาววันเวลา slice(0,16) ตามกติกา
+        const displayDateTime = item.datetime ? item.datetime.replace('T', ' ').slice(0, 16) : '-';
+
+        return `
+          <tr class="hover:bg-slate-50 transition">
+            <td class="px-4 py-3 font-mono text-xs font-semibold text-slate-800">${escapeHTML(item.dispense_id)}</td>
+            <td class="px-4 py-3 text-xs font-mono text-slate-500">${escapeHTML(displayDateTime)}</td>
+            <td class="px-4 py-3 font-mono font-medium text-slate-900">${escapeHTML(item.sku)}</td>
+            <td class="px-4 py-3 text-slate-900">${escapeHTML(drug.generic_name || item.sku)}</td>
+            <td class="px-4 py-3 font-mono text-xs text-slate-600">${escapeHTML(item.lot)}</td>
+            <td class="px-4 py-3 text-right font-semibold text-slate-900">${Number(item.qty).toLocaleString()}</td>
+            <td class="px-4 py-3 font-mono text-xs text-slate-600">${escapeHTML(item.patient_code)}</td>
+            <td class="px-4 py-3 text-xs text-slate-600">${escapeHTML(item.pharmacist_code)}</td>
+            <td class="px-4 py-3 text-center">${typeBadge}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function filterDispenseTable() {
+      renderDispenseTable();
+    }
+
+    // --- CSV Export Functions ---
+    function exportInventoryCSV() {
+      let csv = 'SKU,Generic Name,Lot,Received Date,Expiry,Qty On Hand,Unit Cost,Status\n';
+      gStockList.forEach(s => {
+        const drug = gDrugsMap.get(s.sku) || {};
+        csv += `"${s.sku}","${drug.generic_name || ''}","${s.lot}","${s.received_date || ''}","${s.expiry || ''}",${s.qty_on_hand},${s.unit_cost},"${s.status}"\n`;
+      });
+      downloadCSV(csv, `inventory_report_${gAsOfDate}.csv`);
+    }
+
+    function exportDispenseCSV() {
+      let csv = 'Dispense ID,DateTime,SKU,Lot,Qty,Patient Code,Pharmacist Code,Type\n';
+      gDispenseList.forEach(d => {
+        csv += `"${d.dispense_id}","${d.datetime || ''}","${d.sku}","${d.lot}",${d.qty},"${d.patient_code}","${d.pharmacist_code}","${d.type || 'dispense'}"\n`;
+      });
+      downloadCSV(csv, `dispense_log_${gAsOfDate}.csv`);
+    }
+
+    function downloadCSV(csvContent, fileName) {
+      const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
       const link = document.createElement('a');
       link.href = URL.createObjectURL(blob);
-      link.setAttribute('download', `drug_registry_${gAsOfDate}.csv`);
+      link.setAttribute('download', fileName);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
