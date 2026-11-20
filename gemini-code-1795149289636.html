@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ระบบบริหารคลังยาและรายการจ่าย (Pharmacy Inventory Watchtower)</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --primary-color: #0f172a;
+      --accent-color: #0284c7;
+      --bg-light: #f8fafc;
+      --card-bg: #ffffff;
+    }
+    body {
+      background-color: var(--bg-light);
+      font-family: 'Sarabun', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: #334155;
+    }
+    .navbar-custom {
+      background-color: var(--primary-color);
+    }
+    .kpi-card {
+      border: none;
+      border-radius: 12px;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+      transition: transform 0.2s;
+    }
+    .kpi-card:hover {
+      transform: translateY(-2px);
+    }
+    .kpi-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.25rem;
+    }
+    .badge-supabase {
+      background-color: #16a34a;
+      color: #ffffff;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-weight: 500;
+      font-size: 0.85rem;
+    }
+    .badge-fallback {
+      background-color: #eab308;
+      color: #000000;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-weight: 500;
+      font-size: 0.85rem;
+    }
+    .banner-warning {
+      background-color: #fef9c3;
+      border-left: 4px solid #eab308;
+      color: #854d0e;
+      padding: 12px 16px;
+      border-radius: 6px;
+      margin-bottom: 20px;
+    }
+    .table-container {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+      padding: 20px;
+    }
+    .nav-tabs .nav-link {
+      color: #64748b;
+      font-weight: 600;
+      border: none;
+      padding: 12px 20px;
+    }
+    .nav-tabs .nav-link.active {
+      color: var(--accent-color);
+      border-bottom: 3px solid var(--accent-color);
+      background: transparent;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- เมนูนำทางหลัก -->
+  <nav class="navbar navbar-expand-lg navbar-dark navbar-custom px-4 py-3">
+    <div class="container-fluid">
+      <a class="navbar-brand fw-bold fs-4" href="./dashboard.html">
+        <i class="fa-solid me-2 fa-clinic-medical"></i> Pharmacy Watchtower
+      </a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav me-auto ms-4">
+          <li class="nav-item">
+            <a class="nav-link active" href="./dashboard.html"><i class="fa-solid me-1 fa-chart-line"></i> Dashboard สต็อกและการจ่าย</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="./drug_dashboard.html"><i class="fa-solid me-1 fa-pills"></i> ทะเบียนยา (Drug Registry)</a>
+          </li>
+        </ul>
+        <div id="dataSourceBadgeContainer">
+          <span class="spinner-border spinner-border-sm text-light" role="status"></span>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container-fluid px-4 py-4">
+
+    <!-- แถบแจ้งเตือนข้อมูลสำรอง (จะแสดงเมื่อเรียก API ไม่สำเร็จ) -->
+    <div id="fallbackBanner" class="banner-warning d-none">
+      <i class="fa-solid me-2 fa-triangle-exclamation"></i>
+      <strong>ข้อมูลสำรองจากไฟล์ (ไม่ใช่ข้อมูลล่าสุด)</strong> - ระบบสลับมาใช้ข้อมูลสำรองเนื่องจากไม่สามารถเชื่อมต่อ Data API ได้
+    </div>
+
+    <!-- แถบแจ้งเตือนข้อผิดพลาดร้ายแรง -->
+    <div id="errorMessage" class="alert alert-danger d-none" role="alert">
+      <i class="fa-solid me-2 fa-circle-xmark"></i>
+      <span id="errorText">ทดสอบผ่านลิงก์ Vercel เท่านั้น (Live Server ไม่รัน /api)</span>
+    </div>
+
+    <!-- ส่วนสรุปผล KPI 5 การ์ดหลัก -->
+    <div class="row g-3 mb-4">
+      <div class="col-12 col-sm-6 col-xl-2-4">
+        <div class="card kpi-card p-3">
+          <div class="d-flex align-items-center">
+            <div class="kpi-icon bg-primary-subtle text-primary me-3">
+              <i class="fa-solid fa-boxes-stacked"></i>
+            </div>
+            <div>
+              <div class="text-muted small">SKU ที่มี Stock</div>
+              <h4 class="fw-bold mb-0" id="kpiActiveSku">-</h4>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-sm-6 col-xl-2-4">
+        <div class="card kpi-card p-3">
+          <div class="d-flex align-items-center">
+            <div class="kpi-icon bg-danger-subtle text-danger me-3">
+              <i class="fa-solid fa-cart-flatbed-suitcases"></i>
+            </div>
+            <div>
+              <div class="text-muted small">ถึงจุดสั่งซื้อ (< Reorder)</div>
+              <h4 class="fw-bold mb-0 text-danger" id="kpiReorderCount">-</h4>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-sm-6 col-xl-2-4">
+        <div class="card kpi-card p-3">
+          <div class="d-flex align-items-center">
+            <div class="kpi-icon bg-warning-subtle text-warning me-3">
+              <i class="fa-solid fa-hourglass-half"></i>
+            </div>
+            <div>
+              <div class="text-muted small">ใกล้หมดอายุ (≤ 90 วัน)</div>
+              <h4 class="fw-bold mb-0 text-warning" id="kpiNearExpiry">-</h4>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-sm-6 col-xl-2-4">
+        <div class="card kpi-card p-3">
+          <div class="d-flex align-items-center">
+            <div class="kpi-icon bg-secondary-subtle text-secondary me-3">
+              <i class="fa-solid fa-lock"></i>
+            </div>
+            <div>
+              <div class="text-muted small">ล็อตกักกัน (Quarantine)</div>
+              <h4 class="fw-bold mb-0" id="kpiQuarantine">-</h4>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-sm-6 col-xl-2-4">
+        <div class="card kpi-card p-3">
+          <div class="d-flex align-items-center">
+            <div class="kpi-icon bg-success-subtle text-success me-3">
+              <i class="fa-solid fa-coins"></i>
+            </div>
+            <div>
+              <div class="text-muted small">มูลค่าสต็อก Active</div>
+              <h4 class="fw-bold mb-0 text-success" id="kpiActiveValue">-</h4>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- แท็บสลับหน้าจอการทำงาน -->
+    <ul class="nav nav-tabs mb-4" id="dashboardTabs" role="tablist">
+      <li class="nav-item">
+        <button class="nav-link active" id="stock-tab" data-bs-toggle="tab" data-bs-target="#stock-pane" type="button">
+          <i class="fa-solid me-1 fa-warehouse"></i> ภาพรวมคลังยา (Stock Overview)
+        </button>
+      </li>
+      <li class="nav-item">
+        <button class="nav-link" id="dispense-tab" data-bs-toggle="tab" data-bs-target="#dispense-pane" type="button">
+          <i class="fa-solid me-1 fa-receipt"></i> รายการจ่ายยา (Dispense Logs)
+        </button>
+      </li>
+      <li class="nav-item">
+        <button class="nav-link" id="analytics-tab" data-bs-toggle="tab" data-bs-target="#analytics-pane" type="button">
+          <i class="fa-solid me-1 fa-chart-pie"></i> วิเคราะห์และสถิติ (Analytics)
+        </button>
+      </li>
+    </ul>
+
+    <div class="tab-content" id="dashboardTabContent">
+
+      <!-- แท็บที่ 1: ภาพรวมคลังยา -->
+      <div class="tab-pane fade show active" id="stock-pane" role="tabpanel">
+        <div class="table-container mb-4">
+          <div class="row g-3 align-items-center mb-3">
+            <div class="col-md-4">
+              <input type="text" id="stockSearchInput" class="form-control" placeholder="ค้นหา SKU, ชื่อยา หรือ Lot...">
+            </div>
+            <div class="col-md-3">
+              <select id="stockStatusFilter" class="form-select">
+                <option value="all">สถานะทั้งหมด</option>
+                <option value="active">Active (ใช้งานปกติ)</option>
+                <option value="quarantine">Quarantine (กักกัน)</option>
+                <option value="written_off">Written Off (ตัดจำหน่าย)</option>
+              </select>
+            </div>
+            <div class="col-md-5 text-end">
+              <button class="btn btn-outline-secondary" onclick="exportStockCSV()">
+                <i class="fa-solid me-1 fa-file-csv"></i> ส่งออก CSV
+              </button>
+            </div>
+          </div>
+
+          <div class="table-responsive">
+            <table class="table table-hover align-middle">
+              <thead class="table-light">
+                <tr>
+                  <th>Stock ID</th>
+                  <th>SKU</th>
+                  <th>ชื่อสามัญทางยา</th>
+                  <th>Lot</th>
+                  <th>วันรับเข้า</th>
+                  <th>วันหมดอายุ</th>
+                  <th>สถานะ</th>
+                  <th class="text-end">จำนวนคงเหลือ</th>
+                  <th class="text-end">ราคา/หน่วย</th>
+                  <th class="text-end">มูลค่ารวม</th>
+                </tr>
+              </thead>
+              <tbody id="stockTableBody">
+                <tr><td colspan="10" class="text-center py-4">กำลังโหลดข้อมูลคลังยา...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- แท็บที่ 2: รายการจ่ายยา -->
+      <div class="tab-pane fade" id="dispense-pane" role="tabpanel">
+        <div class="row g-3 mb-4">
+          <div class="col-md-3">
+            <div class="card p-3 text-center border-0 shadow-sm">
+              <div class="text-muted small">รายการจ่าย (Dispense)</div>
+              <h3 class="fw-bold text-primary mb-0" id="dispenseCount">0</h3>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="card p-3 text-center border-0 shadow-sm">
+              <div class="text-muted small">รายการยกเลิก (Void)</div>
+              <h3 class="fw-bold text-danger mb-0" id="voidCount">0</h3>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="card p-3 text-center border-0 shadow-sm">
+              <div class="text-muted small">จำนวน SKU ที่จ่าย</div>
+              <h3 class="fw-bold text-success mb-0" id="dispenseSkuCount">0</h3>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="card p-3 text-center border-0 shadow-sm">
+              <div class="text-muted small">ผู้รับยา (Patients)</div>
+              <h3 class="fw-bold text-info mb-0" id="patientCount">0</h3>
+            </div>
+          </div>
+        </div>
+
+        <div class="table-container">
+          <div class="row g-3 align-items-center mb-3">
+            <div class="col-md-3">
+              <input type="text" id="dispenseSearchInput" class="form-control" placeholder="ค้นหา SKU, รหัสจ่าย, ผู้รับยา...">
+            </div>
+            <div class="col-md-3">
+              <select id="dispenseTypeFilter" class="form-select">
+                <option value="all">ประเภททั้งหมด</option>
+                <option value="dispense">Dispense (จ่ายยา)</option>
+                <option value="void">Void (ยกเลิก)</option>
+                <option value="return">Return (คืนยา)</option>
+              </select>
+            </div>
+            <div class="col-md-4">
+              <div class="input-group">
+                <span class="input-group-text">วันที่</span>
+                <input type="date" id="startDateInput" class="form-control">
+                <input type="date" id="endDateInput" class="form-control">
+              </div>
+            </div>
+            <div class="col-md-2 text-end">
+              <button class="btn btn-outline-secondary w-100" onclick="exportDispenseCSV()">
+                <i class="fa-solid me-1 fa-file-csv"></i> ส่งออก CSV
+              </button>
+            </div>
+          </div>
+
+          <div class="table-responsive">
+            <table class="table table-hover align-middle">
+              <thead class="table-light">
+                <tr>
+                  <th>Dispense ID</th>
+                  <th>วัน-เวลาจ่าย</th>
+                  <th>SKU</th>
+                  <th>Lot</th>
+                  <th class="text-end">จำนวน</th>
+                  <th>ประเภท</th>
+                  <th>รหัสผู้รับยา</th>
+                  <th>เภสัชกรผู้จ่าย</th>
+                </tr>
+              </thead>
+              <tbody id="dispenseTableBody">
+                <tr><td colspan="8" class="text-center py-4">กำลังโหลดประวัติการจ่ายยา...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- แท็บที่ 3: กราฟและบทวิเคราะห์ -->
+      <div class="tab-pane fade" id="analytics-pane" role="tabpanel">
+        <div class="row g-4">
+          <div class="col-md-6">
+            <div class="table-container h-100">
+              <h5 class="fw-bold mb-3">สัดส่วนสถานะสต็อกสินค้า (Stock Status)</h5>
+              <canvas id="stockStatusChart" height="250"></canvas>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="table-container h-100">
+              <h5 class="fw-bold mb-3">Top 5 มูลค่าสต็อกสูงสุดตาม SKU</h5>
+              <canvas id="topStockValueChart" height="250"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ส่วนท้ายกระดาษ -->
+  <footer class="mt-5 py-3 text-center text-muted border-top bg-white">
+    <div class="container">
+      <small id="footerSourceText">ระบบบริหารคลังยา Pharmacy Watchtower</small><br>
+      <small class="text-danger fw-semibold">ทดสอบผ่านลิงก์ Vercel เท่านั้น (Live Server ไม่รัน /api)</small>
+    </div>
+  </footer>
+
+  <script>
+    // ฟังก์ชันความปลอดภัย ป้องกัน XSS Injection สำหรับการแสดงผลผ่าน innerHTML
+    function escapeHTML(str) {
+      if (str === null || str === undefined) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    // ตัวแปรจัดเก็บข้อมูลหลักของแอปพลิเคชัน
+    let globalData = {
+      source: '',
+      asOf: '2026-11-02',
+      drugs: [],
+      stock: [],
+      dispenseLog: []
+    };
+
+    // =================================================================
+    // 1. การดึงข้อมูลจาก API (/api/data) และระบบข้อมูลสำรอง (Fallback)
+    // =================================================================
+    async function loadDashboardData() {
+      const controller = new AbortController();
+      // ตั้งเวลาหมดเขต (Timeout) 8 วินาที
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+      try {
+        // เรียกอ่านข้อมูลผ่าน Data API /api/data บน Vercel
+        const response = await fetch('/api/data', { signal: controller.signal });
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          throw new Error(`การเชื่อมต่อ /api/data ตอบกลับด้วยสถานะ ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        // ตรวจสอบโครงสร้างข้อมูลให้ครบถ้วนก่อนใช้งาน
+        if (!data || !data.drugs || !data.stock || !data.dispense_log) {
+          throw new Error('โครงสร้างข้อมูลที่ได้รับจาก API ไม่สมบูรณ์');
+        }
+
+        // คืนค่าข้อมูลที่ได้จาก Supabase
+        return {
+          source: 'supabase',
+          asOf: data.stock?.meta?.as_of || data.drugs?.meta?.as_of || '2026-11-02',
+          drugs: data.drugs.items || [],
+          stock: data.stock.items || [],
+          dispenseLog: data.dispense_log.items || []
+        };
+
+      } catch (error) {
+        clearTimeout(timeoutId);
+        console.warn('ไม่สามารถดึงข้อมูลจาก /api/data ได้ สลับไปใช้ไฟล์ JSON สำรอง:', error);
+
+        // ทางเลือกสำรอง (Fallback): อ่านไฟล์ JSON ท้องถิ่นในโฟลเดอร์ ./data/
+        try {
+          const [drugsRes, stockRes, dispenseRes] = await Promise.all([
+            fetch('./data/drugs_update.json').catch(() => fetch('./data/drugs.json')),
+            fetch('./data/stock.json'),
+            fetch('./data/dispense-log.json')
+          ]);
+
+          if (!stockRes.ok || !dispenseRes.ok) {
+            throw new Error('ไม่สามารถโหลดไฟล์ JSON สำรองได้');
+          }
+
+          const drugsData = await drugsRes.json();
+          const stockData = await stockRes.json();
+          const dispenseData = await dispenseRes.json();
+
+          const drugsItems = Array.isArray(drugsData) ? drugsData : (drugsData.items || []);
+          const stockItems = Array.isArray(stockData) ? stockData : (stockData.items || []);
+          const dispenseItems = Array.isArray(dispenseData) ? dispenseData : (dispenseData.items || []);
+
+          const asOf = stockData.meta?.as_of || '2026-11-02';
+
+          return {
+            source: 'file',
+            asOf: asOf,
+            drugs: drugsItems,
+            stock: stockItems,
+            dispenseLog: dispenseItems
+          };
+        } catch (fallbackError) {
+          console.error('เกิดข้อผิดพลาดในการดึงข้อมูลสำรอง:', fallbackError);
+          showFatalError('ทดสอบผ่านลิงก์ Vercel เท่านั้น (Live Server ไม่รัน /api)');
+          throw fallbackError;
+        }
+      }
+    }
+
+    // =================================================================
+    // 2. การคำนวณและประมวลผลตัวเลข KPI ต่างๆ
+    // =================================================================
+    function processAndRenderDashboard() {
+      const { source, asOf, drugs, stock, dispenseLog } = globalData;
+
+      // แสดงสถานะแหล่งข้อมูลบน Header และ Footer
+      const badgeContainer = document.getElementById('dataSourceBadgeContainer');
+      const fallbackBanner = document.getElementById('fallbackBanner');
+      const footerSourceText = document.getElementById('footerSourceText');
+
+      if (source === 'supabase') {
+        badgeContainer.innerHTML = `<span class="badge badge-supabase">🟢 ข้อมูลจาก Supabase (ณ วันที่ ${escapeHTML(asOf)})</span>`;
+        fallbackBanner.classList.add('d-none');
+        footerSourceText.innerText = `ข้อมูลประมวลผลจาก API /api/data (Supabase Live) | วันอ้างอิง: ${asOf}`;
+      } else {
+        badgeContainer.innerHTML = `<span class="badge badge-fallback">⚠️ ข้อมูลสำรองจากไฟล์ (ณ วันที่ ${escapeHTML(asOf)})</span>`;
+        fallbackBanner.classList.remove('d-none');
+        footerSourceText.innerText = `ข้อมูลประมวลผลจากไฟล์ JSON สำรอง (ไม่ใช่ข้อมูลล่าสุด) | วันอ้างอิง: ${asOf}`;
+      }
+
+      // สร้าง Map คำนวณยอดใช้ได้ (usable_qty) ต่อ SKU
+      // เงื่อนไข: status = 'active' AND expiry >= as_of AND qty_on_hand > 0
+      const usableQtyMap = {};
+      stock.forEach(lot => {
+        const isStatusActive = lot.status === 'active';
+        const isNotExpired = lot.expiry && lot.expiry.slice(0, 10) >= asOf;
+        const hasQty = Number(lot.qty_on_hand) > 0;
+
+        if (isStatusActive && isNotExpired && hasQty) {
+          usableQtyMap[lot.sku] = (usableQtyMap[lot.sku] || 0) + Number(lot.qty_on_hand);
+        }
+      });
+
+      // KPI 1: SKU ที่มี Stock (นับจำนวน SKU ที่มี usable_qty > 0)
+      const totalSkusCount = drugs.length;
+      let activeSkuCount = 0;
+      drugs.forEach(d => {
+        if ((usableQtyMap[d.sku] || 0) > 0) activeSkuCount++;
+      });
+      document.getElementById('kpiActiveSku').innerText = `${activeSkuCount} จาก ${totalSkusCount}`;
+
+      // KPI 2: ถึงจุดสั่งซื้อ (< reorder_level)
+      // เงื่อนไข: usable_qty < reorder_level (น้อยกว่าอย่างเคร่งครัด)
+      const belowReorderList = drugs.filter(d => {
+        const usable = usableQtyMap[d.sku] || 0;
+        return usable < Number(d.reorder_level);
+      });
+      document.getElementById('kpiReorderCount').innerText = belowReorderList.length;
+
+      // KPI 3: ใกล้หมดอายุ (≤ 90 วัน)
+      // คำนวณความต่างของวันระหว่าง expiry กับ as_of
+      const asOfDateObj = new Date(asOf + 'T00:00:00');
+      let nearExpiryLotsCount = 0;
+
+      stock.forEach(lot => {
+        if (lot.status === 'active' && Number(lot.qty_on_hand) > 0 && lot.expiry) {
+          const expDateObj = new Date(lot.expiry.slice(0, 10) + 'T00:00:00');
+          const diffDays = Math.round((expDateObj - asOfDateObj) / (1000 * 60 * 60 * 24));
+          if (diffDays >= 0 && diffDays <= 90) {
+            nearExpiryLotsCount++;
+          }
+        }
+      });
+      document.getElementById('kpiNearExpiry').innerText = nearExpiryLotsCount;
+
+      // KPI 4: ล็อตกักกัน (Quarantine Lots)
+      const quarantineCount = stock.filter(l => l.status === 'quarantine').length;
+      document.getElementById('kpiQuarantine').innerText = quarantineCount;
+
+      // KPI 5: มูลค่าสต็อก Active (ผลรวม qty_on_hand * unit_cost เฉพาะสถานะ active)
+      const activeStockValue = stock
+        .filter(l => l.status === 'active')
+        .reduce((sum, l) => sum + (Number(l.qty_on_hand) * Number(l.unit_cost)), 0);
+
+      document.getElementById('kpiActiveValue').innerText = `฿${activeStockValue.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+      // วาดตารางและกราฟแสดงผล
+      renderStockTable();
+      renderDispenseLogs();
+      renderCharts();
+    }
+
+    // =================================================================
+    // 3. การแสดงผลตารางภาพรวมคลังยา (Stock Table)
+    // =================================================================
+    function renderStockTable() {
+      const search = document.getElementById('stockSearchInput').value.toLowerCase().trim();
+      const statusFilter = document.getElementById('stockStatusFilter').value;
+      const { stock, drugs } = globalData;
+
+      // Map สำหรับค้นหาชื่อสามัญทางยา
+      const drugNameMap = {};
+      drugs.forEach(d => { drugNameMap[d.sku] = d.generic_name; });
+
+      const filtered = stock.filter(lot => {
+        const matchesStatus = statusFilter === 'all' || lot.status === statusFilter;
+        const genericName = (drugNameMap[lot.sku] || '').toLowerCase();
+        const matchesSearch = !search ||
+          lot.sku.toLowerCase().includes(search) ||
+          lot.stock_id.toLowerCase().includes(search) ||
+          lot.lot.toLowerCase().includes(search) ||
+          genericName.includes(search);
+
+        return matchesStatus && matchesSearch;
+      });
+
+      const tbody = document.getElementById('stockTableBody');
+      if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="10" class="text-center py-4 text-muted">ไม่พบข้อมูลสต็อกตามเงื่อนไขที่ระบุ</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(lot => {
+        const totalVal = Number(lot.qty_on_hand) * Number(lot.unit_cost);
+        let statusBadge = '<span class="badge bg-success">Active</span>';
+        if (lot.status === 'quarantine') statusBadge = '<span class="badge bg-warning text-dark">Quarantine</span>';
+        if (lot.status === 'written_off') statusBadge = '<span class="badge bg-danger">Written Off</span>';
+
+        return `
+          <tr>
+            <td><code>${escapeHTML(lot.stock_id)}</code></td>
+            <td class="fw-semibold">${escapeHTML(lot.sku)}</td>
+            <td>${escapeHTML(drugNameMap[lot.sku] || '-')}</td>
+            <td><code>${escapeHTML(lot.lot)}</code></td>
+            <td>${escapeHTML(lot.received_date ? lot.received_date.slice(0, 10) : '-')}</td>
+            <td>${escapeHTML(lot.expiry ? lot.expiry.slice(0, 10) : '-')}</td>
+            <td>${statusBadge}</td>
+            <td class="text-end font-monospace fw-bold">${Number(lot.qty_on_hand).toLocaleString()}</td>
+            <td class="text-end">฿${Number(lot.unit_cost).toFixed(2)}</td>
+            <td class="text-end fw-semibold">฿${totalVal.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    // =================================================================
+    // 4. การแสดงผลรายการจ่ายยา (Dispense Logs)
+    // =================================================================
+    function renderDispenseLogs() {
+      const search = document.getElementById('dispenseSearchInput').value.toLowerCase().trim();
+      const typeFilter = document.getElementById('dispenseTypeFilter').value;
+      const startDate = document.getElementById('startDateInput').value;
+      const endDate = document.getElementById('endDateInput').value;
+      const { dispenseLog } = globalData;
+
+      const filtered = dispenseLog.filter(item => {
+        const itemType = item.type || 'dispense';
+        const matchesType = typeFilter === 'all' || itemType === typeFilter;
+        
+        // เปรียบเทียบวันเวลาในรูปแบบ String slice(0,10)
+        const itemDate = item.datetime ? item.datetime.slice(0, 10) : '';
+        const matchesStart = !startDate || itemDate >= startDate;
+        const matchesEnd = !endDate || itemDate <= endDate;
+
+        const matchesSearch = !search ||
+          item.dispense_id.toLowerCase().includes(search) ||
+          item.sku.toLowerCase().includes(search) ||
+          item.patient_code.toLowerCase().includes(search) ||
+          (item.pharmacist_code && item.pharmacist_code.toLowerCase().includes(search));
+
+        return matchesType && matchesStart && matchesEnd && matchesSearch;
+      });
+
+      // สรุปสถิติด้านบนของแท็บจ่ายยา
+      const dispenseOnly = filtered.filter(i => (i.type || 'dispense') === 'dispense');
+      const voidOnly = filtered.filter(i => i.type === 'void');
+
+      document.getElementById('dispenseCount').innerText = dispenseOnly.length;
+      document.getElementById('voidCount').innerText = voidOnly.length;
+
+      const uniqueSkus = new Set(dispenseOnly.map(i => i.sku)).size;
+      const uniquePatients = new Set(dispenseOnly.map(i => i.patient_code)).size;
+
+      document.getElementById('dispenseSkuCount').innerText = uniqueSkus;
+      document.getElementById('patientCount').innerText = uniquePatients;
+
+      const tbody = document.getElementById('dispenseTableBody');
+      if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" class="text-center py-4 text-muted">ไม่พบประวัติการจ่ายยาตามเงื่อนไข</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(item => {
+        const itemType = item.type || 'dispense';
+        let typeBadge = '<span class="badge bg-primary">Dispense</span>';
+        if (itemType === 'void') typeBadge = '<span class="badge bg-danger">Void</span>';
+        if (itemType === 'return') typeBadge = '<span class="badge bg-warning text-dark">Return</span>';
+
+        return `
+          <tr>
+            <td><code>${escapeHTML(item.dispense_id)}</code></td>
+            <td>${escapeHTML(item.datetime ? item.datetime.slice(0, 16).replace('T', ' ') : '-')}</td>
+            <td class="fw-semibold">${escapeHTML(item.sku)}</td>
+            <td><code>${escapeHTML(item.lot)}</code></td>
+            <td class="text-end font-monospace fw-bold">${Number(item.qty).toLocaleString()}</td>
+            <td>${typeBadge}</td>
+            <td><code>${escapeHTML(item.patient_code)}</code></td>
+            <td>${escapeHTML(item.pharmacist_code || '-')}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    // =================================================================
+    // 5. การแสดงผลกราฟ Chart.js
+    // =================================================================
+    let chart1Instance = null;
+    let chart2Instance = null;
+
+    function renderCharts() {
+      const { stock, drugs } = globalData;
+
+      // กราฟที่ 1: สัดส่วนสถานะสต็อก
+      const statusCounts = { active: 0, quarantine: 0, written_off: 0 };
+      stock.forEach(l => {
+        if (statusCounts[l.status] !== undefined) statusCounts[l.status]++;
+      });
+
+      const ctx1 = document.getElementById('stockStatusChart').getContext('2d');
+      if (chart1Instance) chart1Instance.destroy();
+      chart1Instance = new Chart(ctx1, {
+        type: 'doughnut',
+        data: {
+          labels: ['Active (ใช้งานปกติ)', 'Quarantine (กักกัน)', 'Written Off (ตัดจำหน่าย)'],
+          datasets: [{
+            data: [statusCounts.active, statusCounts.quarantine, statusCounts.written_off],
+            backgroundColor: ['#16a34a', '#eab308', '#dc2626']
+          }]
+        },
+        options: { responsive: true, maintainAspectRatio: false }
+      });
+
+      // กราฟที่ 2: Top 5 มูลค่าสต็อกสูงสุดตาม SKU
+      const skuValueMap = {};
+      stock.forEach(l => {
+        if (l.status === 'active') {
+          const val = Number(l.qty_on_hand) * Number(l.unit_cost);
+          skuValueMap[l.sku] = (skuValueMap[l.sku] || 0) + val;
+        }
+      });
+
+      const sortedSkus = Object.keys(skuValueMap)
+        .map(sku => ({ sku, val: skuValueMap[sku] }))
+        .sort((a, b) => b.val - a.val)
+        .slice(0, 5);
+
+      const ctx2 = document.getElementById('topStockValueChart').getContext('2d');
+      if (chart2Instance) chart2Instance.destroy();
+      chart2Instance = new Chart(ctx2, {
+        type: 'bar',
+        data: {
+          labels: sortedSkus.map(s => s.sku),
+          datasets: [{
+            label: 'มูลค่าสต็อก (บาท)',
+            data: sortedSkus.map(s => s.val),
+            backgroundColor: '#0284c7'
+          }]
+        },
+        options: { responsive: true, maintainAspectRatio: false }
+      });
+    }
+
+    // =================================================================
+    // 6. การส่งออกข้อมูลเป็น CSV (CSV Export)
+    // =================================================================
+    function exportStockCSV() {
+      const headers = ['Stock ID', 'SKU', 'Lot', 'Received Date', 'Expiry', 'Status', 'Qty On Hand', 'Unit Cost'];
+      const rows = globalData.stock.map(l => [
+        l.stock_id, l.sku, l.lot, l.received_date, l.expiry, l.status, l.qty_on_hand, l.unit_cost
+      ]);
+      downloadCSV('stock_export.csv', [headers, ...rows]);
+    }
+
+    function exportDispenseCSV() {
+      const headers = ['Dispense ID', 'Datetime', 'SKU', 'Lot', 'Qty', 'Type', 'Patient Code', 'Pharmacist Code'];
+      const rows = globalData.dispenseLog.map(i => [
+        i.dispense_id, i.datetime, i.sku, i.lot, i.qty, i.type || 'dispense', i.patient_code, i.pharmacist_code
+      ]);
+      downloadCSV('dispense_log_export.csv', [headers, ...rows]);
+    }
+
+    function downloadCSV(filename, dataArray) {
+      const csvContent = "\uFEFF" + dataArray.map(e => e.join(",")).join("\n");
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.setAttribute("download", filename);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    function showFatalError(msg) {
+      document.getElementById('errorText').innerText = msg;
+      document.getElementById('errorMessage').classList.remove('d-none');
+    }
+
+    // Event Listeners สำหรับการค้นหาและตัวกรอง
+    document.getElementById('stockSearchInput').addEventListener('input', renderStockTable);
+    document.getElementById('stockStatusFilter').addEventListener('change', renderStockTable);
+    document.getElementById('dispenseSearchInput').addEventListener('input', renderDispenseLogs);
+    document.getElementById('dispenseTypeFilter').addEventListener('change', renderDispenseLogs);
+    document.getElementById('startDateInput').addEventListener('change', renderDispenseLogs);
+    document.getElementById('endDateInput').addEventListener('change', renderDispenseLogs);
+
+    // เริ่มต้นทำงานเมื่อโหลดหน้าจอ
+    document.addEventListener('DOMContentLoaded', async () => {
+      try {
+        globalData = await loadDashboardData();
+        processAndRenderDashboard();
+      } catch (err) {
+        console.error('Initialization Error:', err);
+      }
+    });
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
